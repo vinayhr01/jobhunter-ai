@@ -1,0 +1,5 @@
+{
+  "name": "JobHunter AI",
+  "description": "An intelligent job search assistant that finds relevant positions and matches them against your specific resumes using Google Search grounding.",
+  "requestFramePermissions": []
+}
