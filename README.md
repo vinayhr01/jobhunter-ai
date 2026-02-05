@@ -133,3 +133,20 @@ All data stored locally in browser (localStorage):
 
 No backend, no accounts, no tracking.
 
+---
+
+## Support
+
+If this project helped you land interviews or jobs:
+
+⭐ **Star this repository**
+🍴 **Fork and contribute**
+📢 **Share with fellow job seekers**
+
+---
+
+## Contributors
+
+<a href="https://github.com/vinayhr01/jobhunter-ai/graphs/contributors">
+  <img src="https://contrib.rocks/image?repo=vinayhr01/jobhunter-ai" />
+</a>
