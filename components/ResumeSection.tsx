@@ -1,8 +1,10 @@
+// components/ResumeSection.tsx
 import React, { useState, useRef } from 'react';
 import { Plus, Trash2, FileText, X, FileCode2, Loader2, Upload, AlertTriangle, User } from 'lucide-react';
 import { Resume } from '../types';
-import { generateLatexResume, parseResumeFromFile } from '../services/gemini';
+import { generateLatexResumeSafe, parseResumeFromFileSafe } from '../services/gemini';
 import { ResumePreviewModal } from './ResumePreviewModal';
+import { useToast } from '../contexts/ToastContext';
 
 interface ResumeSectionProps {
   resumes: Resume[];
@@ -11,6 +13,7 @@ interface ResumeSectionProps {
 }
 
 export const ResumeSection: React.FC<ResumeSectionProps> = ({ resumes, setResumes, onClose }) => {
+  const toast = useToast();
   const [isAdding, setIsAdding] = useState(false);
   const [newName, setNewName] = useState('');
   const [newContent, setNewContent] = useState('');
@@ -26,36 +29,54 @@ export const ResumeSection: React.FC<ResumeSectionProps> = ({ resumes, setResume
   const [selectedResumeForPreview, setSelectedResumeForPreview] = useState<Resume | null>(null);
 
   const handleAddResume = () => {
-    if (!newName.trim() || !newContent.trim()) return;
+    if (!newName.trim()) {
+      toast.warning('Missing Name', 'Please provide a name for your resume profile.');
+      return;
+    }
+    
+    if (!newContent.trim()) {
+      toast.warning('Missing Content', 'Please paste your resume content.');
+      return;
+    }
     
     const newResume: Resume = {
       id: Math.random().toString(36).substr(2, 9),
-      name: newName,
-      content: newContent
+      name: newName.trim(),
+      content: newContent.trim()
     };
     
     setResumes([...resumes, newResume]);
     setNewName('');
     setNewContent('');
     setIsAdding(false);
+    
+    toast.success('Resume Added', `"${newName}" has been saved successfully.`);
   };
 
   const handleDelete = (id: string) => {
+    const resume = resumes.find(r => r.id === id);
+    
+    if (!resume) {
+      toast.error('Error', 'Could not find the resume to delete.');
+      return;
+    }
+    
     setResumes(resumes.filter(r => r.id !== id));
+    toast.info('Resume Deleted', `"${resume.name}" has been removed.`);
   };
 
   const handleGeneratePreview = async (resume: Resume) => {
-    try {
-      setIsGeneratingLatex(resume.id);
-      const code = await generateLatexResume(resume);
+    setIsGeneratingLatex(resume.id);
+    
+    const code = await generateLatexResumeSafe(resume, undefined, toast);
+    
+    if (code) {
       setLatexCode(code);
       setSelectedResumeForPreview(resume);
-    } catch (e) {
-      console.error(e);
-      alert("Failed to generate content");
-    } finally {
-      setIsGeneratingLatex(null);
     }
+    // Error handling is done inside generateLatexResumeSafe with toast
+    
+    setIsGeneratingLatex(null);
   };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -67,34 +88,51 @@ export const ResumeSection: React.FC<ResumeSectionProps> = ({ resumes, setResume
     // Validate file type
     const validTypes = ['application/pdf', 'image/png', 'image/jpeg', 'image/jpg'];
     if (!validTypes.includes(file.type)) {
-      alert("Please upload a PDF or Image (PNG/JPG) file.");
+      toast.error('Invalid File Type', 'Please upload a PDF or Image (PNG/JPG) file.');
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      return;
+    }
+
+    // Validate file size (max 10MB)
+    const maxSize = 10 * 1024 * 1024;
+    if (file.size > maxSize) {
+      toast.error('File Too Large', 'Please upload a file smaller than 10MB.');
+      if (fileInputRef.current) fileInputRef.current.value = '';
       return;
     }
 
     setIsUploading(true);
-    try {
-      const parsedData = await parseResumeFromFile(file);
-      
+    
+    const parsedData = await parseResumeFromFileSafe(file, toast);
+    
+    if (parsedData) {
       if (parsedData.confidenceScore < 60) {
-        setUploadWarning(`Parsing quality was low (${parsedData.confidenceScore}%). Please check the extracted text.`);
+        setUploadWarning(`Parsing quality was low (${parsedData.confidenceScore}%). Please verify the extracted text.`);
       }
-
+      
       const newResume: Resume = {
         id: Math.random().toString(36).substr(2, 9),
-        name: parsedData.name || file.name,
+        name: parsedData.name || file.name.replace(/\.[^/.]+$/, ''),
         content: parsedData.content
       };
-
-      setResumes(prev => [...prev, newResume]);
       
-      // Reset input
-      if (fileInputRef.current) fileInputRef.current.value = '';
-    } catch (error) {
-      console.error(error);
-      alert("Failed to parse the file. Please try copying the text manually.");
-    } finally {
-      setIsUploading(false);
+      setResumes(prev => [...prev, newResume]);
     }
+    // Error handling is done inside parseResumeFromFileSafe with toast
+    
+    // Reset input
+    if (fileInputRef.current) fileInputRef.current.value = '';
+    setIsUploading(false);
+  };
+
+  const handleCancelAdd = () => {
+    setIsAdding(false);
+    setNewName('');
+    setNewContent('');
+  };
+
+  const handleDismissWarning = () => {
+    setUploadWarning(null);
   };
 
   return (
@@ -126,11 +164,10 @@ export const ResumeSection: React.FC<ResumeSectionProps> = ({ resumes, setResume
               Manage your diverse resumes.
             </p>
           </div>
-          
           {/* Mobile Close Button */}
           <button 
             onClick={onClose} 
-            className="md:hidden text-zinc-400 hover:text-white p-2 bg-zinc-900 rounded-full"
+            className="md:hidden text-zinc-400 hover:text-white p-2 bg-zinc-900 rounded-full transition-colors"
           >
             <X className="w-5 h-5" />
           </button>
@@ -147,12 +184,17 @@ export const ResumeSection: React.FC<ResumeSectionProps> = ({ resumes, setResume
               </div>
             </div>
           )}
-          
+
           {uploadWarning && (
-            <div className="bg-yellow-900/10 border border-yellow-700/30 rounded-lg p-3 flex gap-2 items-start text-xs text-yellow-500 mb-2">
+            <div className="bg-yellow-900/10 border border-yellow-700/30 rounded-lg p-3 flex gap-2 items-start text-xs text-yellow-500 mb-2 animate-in fade-in">
                <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5" />
                <span className="flex-1">{uploadWarning}</span>
-               <button onClick={() => setUploadWarning(null)} className="hover:text-white"><X className="w-3 h-3"/></button>
+               <button 
+                 onClick={handleDismissWarning} 
+                 className="hover:text-white transition-colors p-0.5 hover:bg-yellow-900/20 rounded"
+               >
+                 <X className="w-3 h-3"/>
+               </button>
             </div>
           )}
 
@@ -165,12 +207,11 @@ export const ResumeSection: React.FC<ResumeSectionProps> = ({ resumes, setResume
                    </div>
                    <h3 className="font-medium text-zinc-200 text-sm group-hover:text-white transition-colors">{resume.name}</h3>
                 </div>
-                
                 <div className="flex items-center gap-1 opacity-100 md:opacity-0 group-hover:opacity-100 transition-opacity">
                    <button 
                     onClick={() => handleGeneratePreview(resume)}
                     disabled={!!isGeneratingLatex}
-                    className="text-zinc-500 hover:text-emerald-400 p-2 hover:bg-zinc-700/50 rounded-lg transition-colors"
+                    className="text-zinc-500 hover:text-emerald-400 p-2 hover:bg-zinc-700/50 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                     title="Generate PDF/LaTeX"
                   >
                     {isGeneratingLatex === resume.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileCode2 className="w-4 h-4" />}
@@ -178,6 +219,7 @@ export const ResumeSection: React.FC<ResumeSectionProps> = ({ resumes, setResume
                   <button 
                     onClick={() => handleDelete(resume.id)}
                     className="text-zinc-500 hover:text-red-400 p-2 hover:bg-zinc-700/50 rounded-lg transition-colors"
+                    title="Delete Resume"
                   >
                     <Trash2 className="w-4 h-4" />
                   </button>
@@ -202,27 +244,26 @@ export const ResumeSection: React.FC<ResumeSectionProps> = ({ resumes, setResume
               <input
                 type="text"
                 placeholder="Profile Name (e.g. React Dev)"
-                className="w-full bg-black border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/20 outline-none"
+                className="w-full bg-black border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/20 outline-none transition-all"
                 value={newName}
                 onChange={(e) => setNewName(e.target.value)}
               />
               <textarea
                 placeholder="Paste resume text here..."
-                className="w-full bg-black border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/20 outline-none h-32 resize-none custom-scrollbar"
+                className="w-full bg-black border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/20 outline-none h-32 resize-none custom-scrollbar transition-all"
                 value={newContent}
                 onChange={(e) => setNewContent(e.target.value)}
               />
               <div className="flex justify-end gap-2 pt-2">
                 <button 
-                  onClick={() => setIsAdding(false)}
+                  onClick={handleCancelAdd}
                   className="text-xs text-zinc-400 hover:text-white px-3 py-1.5 rounded hover:bg-zinc-800 transition-colors"
                 >
                   Cancel
                 </button>
                 <button 
                   onClick={handleAddResume}
-                  disabled={!newName || !newContent}
-                  className="bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed text-white text-xs px-4 py-1.5 rounded-lg font-medium shadow-lg shadow-emerald-900/20 transition-all"
+                  className="bg-emerald-600 hover:bg-emerald-500 text-white text-xs px-4 py-1.5 rounded-lg font-medium shadow-lg shadow-emerald-900/20 transition-all"
                 >
                   Save Profile
                 </button>

@@ -1,8 +1,10 @@
+// components/JobCard.tsx
 import React, { useState } from 'react';
-import { ExternalLink, Briefcase, Building2, MapPin, CheckCircle2, AlertCircle, Sparkles, FileCode2, Loader2, ArrowRightCircle, Clock, SearchCode } from 'lucide-react';
+import { ExternalLink, Briefcase, Building2, MapPin, CheckCircle2, AlertCircle, Sparkles, FileCode2, Loader2, Clock, SearchCode } from 'lucide-react';
 import { JobWithAnalysis, Resume, TrackedJob, ApplicationStatus } from '../types';
-import { generateLatexResume, generateJobDork } from '../services/gemini';
+import { generateLatexResumeSafe, generateJobDork } from '../services/gemini';
 import { ResumePreviewModal } from './ResumePreviewModal';
+import { useToast } from '../contexts/ToastContext';
 
 interface JobCardProps {
   job: JobWithAnalysis | TrackedJob;
@@ -12,6 +14,7 @@ interface JobCardProps {
 }
 
 export const JobCard: React.FC<JobCardProps> = ({ job, resumes, onTrackJob, isTracked }) => {
+  const toast = useToast();
   const matchedResume = resumes.find(r => r.id === job.analysis?.bestResumeId);
   const score = job.analysis?.matchScore || 0;
   const trackedJob = job as TrackedJob;
@@ -21,44 +24,57 @@ export const JobCard: React.FC<JobCardProps> = ({ job, resumes, onTrackJob, isTr
   const [showDork, setShowDork] = useState(false);
 
   const handleGenerateTailoredResume = async () => {
-    if (!matchedResume) return;
-    setIsGeneratingLatex(true);
-    try {
-      const code = await generateLatexResume(matchedResume, job);
-      setLatexCode(code);
-    } catch (e) {
-      console.error(e);
-      alert("Failed to generate tailored resume");
-    } finally {
-      setIsGeneratingLatex(false);
+    if (!matchedResume) {
+      toast.warning('No Resume Match', 'No matching resume found for this job. Please ensure you have resumes added.');
+      return;
     }
+    
+    setIsGeneratingLatex(true);
+    
+    const code = await generateLatexResumeSafe(matchedResume, job, toast);
+    
+    if (code) {
+      setLatexCode(code);
+    }
+    // Error handling is done inside generateLatexResumeSafe with toast
+    
+    setIsGeneratingLatex(false);
   };
-  
+
   const handleApplyClick = () => {
     if (job.url && job.url.startsWith('http')) {
       window.open(job.url, '_blank');
     } else {
-        // Fallback to a smart Google Search (Dork) if URL is missing or looks fake
-        const dork = generateJobDork(job.title, job.company);
-        const searchUrl = `https://www.google.com/search?q=${encodeURIComponent(dork)}`;
-        window.open(searchUrl, '_blank');
+      // Fallback to a smart Google Search (Dork) if URL is missing or looks fake
+      const dork = generateJobDork(job.title, job.company);
+      const searchUrl = `https://www.google.com/search?q=${encodeURIComponent(dork)}`;
+      window.open(searchUrl, '_blank');
+      toast.info('Search Opened', 'No direct link found. Opening Google search for this job.');
     }
-
+    
     // If not already tracked, track it as 'applied'
     if (onTrackJob && !isTracked) {
       onTrackJob(job, 'applied');
+      toast.success('Job Tracked', `"${job.title}" has been added to your applications.`);
     }
   };
 
   const handleShowDork = () => {
-      setShowDork(!showDork);
+    setShowDork(!showDork);
+  };
+
+  const handleStatusChange = (status: ApplicationStatus) => {
+    if (onTrackJob) {
+      onTrackJob(job, status);
+      toast.info('Status Updated', `Job status changed to "${status}".`);
+    }
   };
 
   // Dynamic color for score
   let scoreColor = "text-zinc-500";
   let scoreBg = "bg-zinc-800";
   let scoreBorder = "border-zinc-700";
-  
+
   if (job.analysis) {
     if (score >= 90) {
       scoreColor = "text-emerald-400";
@@ -88,7 +104,6 @@ export const JobCard: React.FC<JobCardProps> = ({ job, resumes, onTrackJob, isTr
       />
 
       <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-5 hover:border-zinc-600 hover:shadow-xl hover:bg-zinc-900/80 transition-all duration-300 group relative overflow-hidden">
-        
         {/* Top Section */}
         <div className="flex flex-col sm:flex-row justify-between items-start gap-4 mb-4 relative z-10">
           <div className="flex-1 w-full min-w-0">
@@ -96,7 +111,6 @@ export const JobCard: React.FC<JobCardProps> = ({ job, resumes, onTrackJob, isTr
               <h3 className="text-lg md:text-xl font-bold text-zinc-100 group-hover:text-emerald-400 transition-colors line-clamp-2 pr-4 leading-tight">
                 {job.title}
               </h3>
-              
               {/* Mobile Score Badge (Top Right) */}
               <div className="sm:hidden flex-shrink-0 ml-2">
                   {job.isAnalyzing ? (
@@ -110,7 +124,6 @@ export const JobCard: React.FC<JobCardProps> = ({ job, resumes, onTrackJob, isTr
                   )}
               </div>
             </div>
-            
             <div className="flex flex-wrap items-center gap-3 md:gap-4 text-sm text-zinc-400 mb-3">
               <span className="flex items-center gap-1.5 bg-zinc-950/50 px-2 py-1 rounded border border-zinc-800">
                 <Building2 className="w-3.5 h-3.5 flex-shrink-0 text-zinc-500" />
@@ -146,7 +159,6 @@ export const JobCard: React.FC<JobCardProps> = ({ job, resumes, onTrackJob, isTr
                 Pending
               </div>
             )}
-            
             {isTracked && (
                  <span className={`mt-2 text-[10px] uppercase font-bold px-2 py-0.5 rounded-full border ${
                    trackedJob.status === 'offer' ? 'bg-green-900/40 text-green-400 border-green-800' :
@@ -159,7 +171,7 @@ export const JobCard: React.FC<JobCardProps> = ({ job, resumes, onTrackJob, isTr
             )}
           </div>
         </div>
-        
+
         {/* Description / Summary */}
         <p className="text-zinc-400 text-sm leading-relaxed mb-4 line-clamp-3 md:line-clamp-none border-l-2 border-zinc-800 pl-3">
             {job.summary}
@@ -191,7 +203,6 @@ export const JobCard: React.FC<JobCardProps> = ({ job, resumes, onTrackJob, isTr
                 "{job.analysis.reasoning}"
               </p>
             </div>
-
             <div>
               <div className="text-[10px] font-bold text-zinc-600 uppercase tracking-wider mb-2">Missing Skills</div>
               {job.analysis.missingKeywords.length > 0 ? (
@@ -222,7 +233,7 @@ export const JobCard: React.FC<JobCardProps> = ({ job, resumes, onTrackJob, isTr
                {(['applied', 'interviewing', 'offer', 'rejected'] as ApplicationStatus[]).map(s => (
                  <button 
                   key={s}
-                  onClick={() => onTrackJob(job, s)}
+                  onClick={() => handleStatusChange(s)}
                   className={`px-3 py-1.5 rounded-md text-xs font-medium capitalize border transition-colors whitespace-nowrap ${trackedJob.status === s ? 'bg-zinc-700 text-white border-zinc-600 shadow-sm' : 'bg-transparent text-zinc-500 border-transparent hover:bg-zinc-800'}`}
                  >
                   {s}
@@ -250,7 +261,6 @@ export const JobCard: React.FC<JobCardProps> = ({ job, resumes, onTrackJob, isTr
                    Preview/PDF
                  </button>
               )}
-
               <button 
                 onClick={handleApplyClick}
                 className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-medium rounded-lg transition-all shadow-lg shadow-emerald-900/20 hover:shadow-emerald-900/40"

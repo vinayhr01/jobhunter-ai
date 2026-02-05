@@ -1,7 +1,9 @@
+// components/ResumePreviewModal.tsx
 import React, { useState, useEffect } from 'react';
-import { X, Copy, Check, Download, Code, Eye, Printer } from 'lucide-react';
-import { generateHtmlResume } from '../services/gemini';
+import { X, Copy, Check, Eye, Printer, Code } from 'lucide-react';
+import { generateHtmlResumeSafe } from '../services/gemini';
 import { Resume, JobWithAnalysis } from '../types';
+import { useToast } from '../contexts/ToastContext';
 
 interface ResumePreviewModalProps {
   isOpen: boolean;
@@ -12,6 +14,7 @@ interface ResumePreviewModalProps {
 }
 
 export const ResumePreviewModal: React.FC<ResumePreviewModalProps> = ({ isOpen, onClose, latexCode, resume, job }) => {
+  const toast = useToast();
   const [activeTab, setActiveTab] = useState<'preview' | 'latex'>('preview');
   const [htmlContent, setHtmlContent] = useState<string>('');
   const [isLoadingPreview, setIsLoadingPreview] = useState(false);
@@ -23,17 +26,26 @@ export const ResumePreviewModal: React.FC<ResumePreviewModalProps> = ({ isOpen, 
     }
   }, [isOpen, activeTab]);
 
+  // Reset state when modal closes
+  useEffect(() => {
+    if (!isOpen) {
+      setHtmlContent('');
+      setActiveTab('preview');
+      setCopied(false);
+    }
+  }, [isOpen]);
+
   const loadHtmlPreview = async () => {
     if (!resume) return;
     setIsLoadingPreview(true);
-    try {
-      const html = await generateHtmlResume(resume, job);
+    
+    const html = await generateHtmlResumeSafe(resume, job, toast);
+    
+    if (html) {
       setHtmlContent(html);
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setIsLoadingPreview(false);
     }
+    
+    setIsLoadingPreview(false);
   };
 
   if (!isOpen) return null;
@@ -41,10 +53,16 @@ export const ResumePreviewModal: React.FC<ResumePreviewModalProps> = ({ isOpen, 
   const handleCopy = () => {
     navigator.clipboard.writeText(latexCode);
     setCopied(true);
+    toast.success('Copied!', 'LaTeX code copied to clipboard.');
     setTimeout(() => setCopied(false), 2000);
   };
 
   const handlePrint = () => {
+    if (!htmlContent) {
+      toast.warning('Preview Not Ready', 'Please wait for the preview to load.');
+      return;
+    }
+    
     const printWindow = window.open('', '_blank');
     if (printWindow) {
       printWindow.document.write(htmlContent);
@@ -53,6 +71,9 @@ export const ResumePreviewModal: React.FC<ResumePreviewModalProps> = ({ isOpen, 
       setTimeout(() => {
         printWindow.print();
       }, 500);
+      toast.info('Print Dialog', 'Use "Save as PDF" in the print dialog to download.');
+    } else {
+      toast.error('Popup Blocked', 'Please allow popups to use the print feature.');
     }
   };
 
@@ -78,13 +99,12 @@ export const ResumePreviewModal: React.FC<ResumePreviewModalProps> = ({ isOpen, 
               </button>
             </div>
           </div>
-          
           <div className="flex items-center gap-2">
             {activeTab === 'preview' ? (
               <button
                 onClick={handlePrint}
                 disabled={isLoadingPreview || !htmlContent}
-                className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-emerald-600 hover:bg-emerald-500 text-white text-sm transition-colors font-medium disabled:opacity-50"
+                className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-emerald-600 hover:bg-emerald-500 text-white text-sm transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <Printer className="w-4 h-4" />
                 Download PDF
@@ -106,7 +126,7 @@ export const ResumePreviewModal: React.FC<ResumePreviewModalProps> = ({ isOpen, 
             </button>
           </div>
         </div>
-        
+
         {/* Content */}
         <div className="flex-1 bg-zinc-950 overflow-hidden relative">
           {activeTab === 'preview' ? (
@@ -116,11 +136,21 @@ export const ResumePreviewModal: React.FC<ResumePreviewModalProps> = ({ isOpen, 
                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-emerald-500"></div>
                    <p>Generating PDF Preview...</p>
                 </div>
-              ) : (
+              ) : htmlContent ? (
                 <div 
                   className="bg-white text-black shadow-2xl w-[210mm] min-h-[297mm] p-[10mm] origin-top transform scale-[0.6] sm:scale-75 md:scale-100 transition-transform mb-20"
                   dangerouslySetInnerHTML={{ __html: htmlContent }} 
                 />
+              ) : (
+                <div className="flex flex-col items-center justify-center text-zinc-500 gap-3">
+                   <p>Preview could not be loaded.</p>
+                   <button 
+                     onClick={loadHtmlPreview}
+                     className="text-emerald-500 hover:text-emerald-400 text-sm underline"
+                   >
+                     Try Again
+                   </button>
+                </div>
               )}
             </div>
           ) : (
@@ -132,9 +162,9 @@ export const ResumePreviewModal: React.FC<ResumePreviewModalProps> = ({ isOpen, 
             />
           )}
         </div>
-        
+
         <div className="p-3 bg-zinc-900 border-t border-zinc-800 text-xs text-zinc-500 flex justify-between items-center flex-shrink-0">
-           <span>{activeTab === 'preview' ? 'Use the print dialog to Save as PDF.' : 'Paste this code into Overleaf.'}</span>
+           <span>{activeTab === 'preview' ? 'Use the print dialog to Save as PDF.' : 'Paste this code into Overleaf or a LaTeX compiler.'}</span>
            {job && <span className="text-zinc-400">Tailored for {job.company}</span>}
         </div>
       </div>

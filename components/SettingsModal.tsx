@@ -1,7 +1,9 @@
+// components/SettingsModal.tsx
 import React, { useState, useEffect } from 'react';
-import { X, Save, Settings, Key, Box, Globe, CheckCircle2, Eye, EyeOff, Loader2, FileText, Sparkles, Check, XCircle, Terminal, ChevronDown, RefreshCw, LayoutTemplate } from 'lucide-react';
+import { X, Save, Settings, Key, Box, Globe, CheckCircle2, Eye, EyeOff, Loader2, FileText, Sparkles, Terminal, ChevronDown, LayoutTemplate } from 'lucide-react';
 import { LLMSettings, LLMProvider, TaskType, LLMConfig } from '../types';
 import { getLLMSettings, saveLLMSettings, fetchProviderModels, ModelInfo } from '../services/gemini';
+import { useToast } from '../contexts/ToastContext';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -9,6 +11,7 @@ interface SettingsModalProps {
 }
 
 export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
+  const toast = useToast();
   const [settings, setSettings] = useState<LLMSettings>(getLLMSettings());
   const [activeTab, setActiveTab] = useState<'global' | TaskType>('global');
   const [isSaved, setIsSaved] = useState(false);
@@ -25,8 +28,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
   // Derived state for the currently edited configuration
   const currentConfig: LLMConfig = activeTab === 'global' 
     ? settings 
-    : (settings.overrides?.[activeTab] || settings); // Display global if no override, but handled by logic below
-
+    : (settings.overrides?.[activeTab] || settings);
+  
   const isOverridden = activeTab !== 'global' && !!settings.overrides?.[activeTab];
 
   // Initialize
@@ -49,23 +52,32 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
         return;
     }
 
+    const controller = new AbortController();
+
     const loadModels = async () => {
       setIsLoadingModels(true);
       setFetchError(null);
       try {
         const models = await fetchProviderModels(currentConfig.provider, currentConfig.apiKey, currentConfig.baseUrl);
-        setAvailableModels(models);
-        if (models.length > 0) {
-            setIsManualMode(false);
-        } else {
-            setIsManualMode(true);
+        
+        if (!controller.signal.aborted) {
+          setAvailableModels(models);
+          if (models.length > 0) {
+              setIsManualMode(false);
+          } else {
+              setIsManualMode(true);
+          }
         }
       } catch (e) {
-        setFetchError("Failed to load models.");
-        setAvailableModels([]);
-        setIsManualMode(true);
+        if (!controller.signal.aborted) {
+          setFetchError("Failed to load models.");
+          setAvailableModels([]);
+          setIsManualMode(true);
+        }
       } finally {
-        setIsLoadingModels(false);
+        if (!controller.signal.aborted) {
+          setIsLoadingModels(false);
+        }
       }
     };
 
@@ -73,20 +85,22 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
         loadModels();
     }, 500);
 
-    return () => clearTimeout(timeoutId);
+    return () => {
+      clearTimeout(timeoutId);
+      controller.abort();
+    };
   }, [currentConfig.provider, currentConfig.apiKey, currentConfig.baseUrl, isOpen, activeTab, isOverridden]);
 
   const handleUpdateConfig = (updates: Partial<LLMConfig>) => {
     if (activeTab === 'global') {
         setSettings({ ...settings, ...updates });
     } else {
-        // We are updating an override
         setSettings(prev => ({
             ...prev,
             overrides: {
                 ...prev.overrides,
                 [activeTab]: {
-                    ...(prev.overrides?.[activeTab] || prev), // Copy global as base if creating new override
+                    ...(prev.overrides?.[activeTab] || prev),
                     ...updates
                 }
             }
@@ -95,7 +109,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
   };
 
   const handleCreateOverride = () => {
-     // Clone global settings to specific override
      handleUpdateConfig({}); 
   };
 
@@ -105,17 +118,23 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
           delete newOverrides[activeTab as TaskType];
           return { ...prev, overrides: newOverrides };
       });
+      toast.info('Override Removed', 'This task will now use global settings.');
   };
 
   const handleSave = () => {
-    saveLLMSettings(settings);
-    setIsSaved(true);
-    setTimeout(() => {
-      setIsSaved(false);
-      onClose();
-    }, 1000);
+    try {
+      saveLLMSettings(settings);
+      setIsSaved(true);
+      toast.success('Settings Saved', 'Your AI configuration has been updated successfully.');
+      setTimeout(() => {
+        setIsSaved(false);
+        onClose();
+      }, 1000);
+    } catch (err) {
+      toast.error('Save Failed', 'Could not save settings. Please try again.');
+    }
   };
-  
+
   const handleModelSelect = (modelId: string) => {
       const selectedModel = availableModels.find(m => m.id === modelId);
       handleUpdateConfig({
@@ -147,27 +166,24 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
   return (
     <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
       <div className="bg-zinc-900 border border-zinc-700 rounded-xl w-full max-w-5xl shadow-2xl flex flex-col max-h-[90vh] overflow-hidden">
-        
         {/* Header */}
         <div className="flex justify-between items-center p-4 border-b border-zinc-800 bg-zinc-900 z-10 flex-shrink-0">
           <h3 className="text-lg font-semibold text-white flex items-center gap-2">
             <LayoutTemplate className="w-5 h-5 text-zinc-400" />
             Model Configuration
           </h3>
-          <button onClick={onClose} className="p-1.5 rounded-md hover:bg-zinc-800 text-zinc-400 hover:text-white">
+          <button onClick={onClose} className="p-1.5 rounded-md hover:bg-zinc-800 text-zinc-400 hover:text-white transition-colors">
             <X className="w-5 h-5" />
           </button>
         </div>
 
         <div className="flex flex-col md:flex-row h-full overflow-hidden">
-            
             {/* Sidebar Navigation */}
             <div className="w-full md:w-64 bg-zinc-950 border-b md:border-b-0 md:border-r border-zinc-800 flex flex-row md:flex-col overflow-x-auto p-2 gap-1 flex-shrink-0 custom-scrollbar">
                {tabs.map(tab => {
                    const isActive = activeTab === tab.id;
                    const isOverrideSet = tab.id !== 'global' && !!settings.overrides?.[tab.id as TaskType];
                    const TabIcon = tab.icon;
-                   
                    return (
                        <button
                          key={tab.id}
@@ -193,7 +209,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
 
             {/* Main Content Area */}
             <div className="flex-1 flex flex-col overflow-hidden bg-zinc-900">
-                
                 {/* Override Header / Status */}
                 {activeTab !== 'global' && (
                     <div className="p-4 border-b border-zinc-800 bg-zinc-900/50 flex justify-between items-center flex-shrink-0">
@@ -203,7 +218,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                                 {isOverridden ? "Custom configuration active for this task." : "Currently inheriting from Global Default."}
                             </p>
                         </div>
-                        
                         {isOverridden ? (
                             <button 
                                 onClick={handleRemoveOverride}
@@ -224,7 +238,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
 
                 {/* Configuration Form */}
                 <div className={`flex-1 p-6 overflow-y-auto custom-scrollbar space-y-6 ${!isOverridden && activeTab !== 'global' ? 'opacity-50 pointer-events-none grayscale' : ''}`}>
-                    
                     {/* Provider Grid */}
                     <div className="space-y-3">
                         <label className="text-xs font-medium text-zinc-400 uppercase tracking-wider">AI Provider</label>
@@ -267,7 +280,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                                 value={currentConfig.apiKey}
                                 onChange={(e) => handleUpdateConfig({ apiKey: e.target.value })}
                                 placeholder={currentConfig.provider === 'custom' ? "Not required for Ollama" : currentConfig.provider === 'google' ? "AIza..." : "sk-..."}
-                                className="w-full bg-zinc-950 border border-zinc-700 rounded-lg px-3 py-2 text-zinc-200 focus:ring-1 focus:ring-emerald-500 outline-none text-sm font-mono pr-10"
+                                className="w-full bg-zinc-950 border border-zinc-700 rounded-lg px-3 py-2 text-zinc-200 focus:ring-1 focus:ring-emerald-500 outline-none text-sm font-mono pr-10 transition-all"
                             />
                             <button
                                 type="button"
@@ -292,7 +305,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                                 value={currentConfig.baseUrl || ''}
                                 onChange={(e) => handleUpdateConfig({ baseUrl: e.target.value })}
                                 placeholder={currentConfig.provider === 'openrouter' ? "https://openrouter.ai/api/v1" : "http://localhost:11434/v1"}
-                                className="w-full bg-zinc-950 border border-zinc-700 rounded-lg px-3 py-2 text-zinc-200 focus:ring-1 focus:ring-emerald-500 outline-none text-sm font-mono"
+                                className="w-full bg-zinc-950 border border-zinc-700 rounded-lg px-3 py-2 text-zinc-200 focus:ring-1 focus:ring-emerald-500 outline-none text-sm font-mono transition-all"
                             />
                         </div>
                         )}
@@ -313,7 +326,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                                     )}
                                 </div>
                             </label>
-                            
                             <div className="relative">
                                 {!isManualMode && availableModels.length > 0 ? (
                                     <div className="relative">
@@ -338,7 +350,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                                             value={currentConfig.modelName}
                                             onChange={(e) => handleUpdateConfig({ modelName: e.target.value })}
                                             placeholder="e.g. gpt-4o, llama3"
-                                            className="w-full bg-zinc-950 border border-zinc-700 rounded-lg px-3 py-2 text-zinc-200 focus:ring-1 focus:ring-emerald-500 outline-none text-sm font-mono"
+                                            className="w-full bg-zinc-950 border border-zinc-700 rounded-lg px-3 py-2 text-zinc-200 focus:ring-1 focus:ring-emerald-500 outline-none text-sm font-mono transition-all"
                                         />
                                         {fetchError && !isManualMode && (
                                             <div className="absolute right-2 top-1/2 -translate-y-1/2 text-red-500 text-[10px] pointer-events-none">Failed</div>
@@ -354,9 +366,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                         <label className="text-xs font-medium text-zinc-400 uppercase tracking-wider flex items-center justify-between">
                             Capabilities
                         </label>
-                        
                         <div className="grid grid-cols-2 gap-2">
-                            <label className={`flex items-center gap-2 p-2 rounded border text-xs cursor-pointer ${currentConfig.supportsVision ? 'bg-zinc-800 border-zinc-600 text-zinc-200' : 'bg-zinc-950 border-zinc-800 text-zinc-500'}`}>
+                            <label className={`flex items-center gap-2 p-2 rounded border text-xs cursor-pointer transition-all ${currentConfig.supportsVision ? 'bg-zinc-800 border-zinc-600 text-zinc-200' : 'bg-zinc-950 border-zinc-800 text-zinc-500'}`}>
                                 <input 
                                     type="checkbox" 
                                     checked={currentConfig.supportsVision}
@@ -365,8 +376,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                                 />
                                 Supports Vision
                             </label>
-
-                            <label className={`flex items-center gap-2 p-2 rounded border text-xs cursor-pointer ${currentConfig.supportsSearch ? 'bg-zinc-800 border-zinc-600 text-zinc-200' : 'bg-zinc-950 border-zinc-800 text-zinc-500'} ${currentConfig.provider !== 'google' ? 'opacity-60' : ''}`}>
+                            <label className={`flex items-center gap-2 p-2 rounded border text-xs cursor-pointer transition-all ${currentConfig.supportsSearch ? 'bg-zinc-800 border-zinc-600 text-zinc-200' : 'bg-zinc-950 border-zinc-800 text-zinc-500'} ${currentConfig.provider !== 'google' ? 'opacity-60' : ''}`}>
                                 <input 
                                     type="checkbox" 
                                     checked={currentConfig.supportsSearch}
@@ -384,7 +394,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                             </div>
                         )}
                     </div>
-
                 </div>
             </div>
         </div>

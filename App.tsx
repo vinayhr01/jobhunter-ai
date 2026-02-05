@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { ResumeSection } from './components/ResumeSection';
 import { JobSearchSection } from './components/JobSearchSection';
+import { ToastProvider } from './contexts/ToastContext';
 import { Resume, TrackedJob, JobWithAnalysis, ApplicationStatus } from './types';
 
 // Default mock resume for better UX on first load
@@ -49,38 +50,38 @@ const App: React.FC = () => {
   };
 
   return (
-    <div className="flex h-screen bg-black text-white overflow-hidden font-sans selection:bg-emerald-500/30 relative">
-      {/* Mobile Overlay */}
-      {isSidebarOpen && (
-        <div 
-          className="fixed inset-0 bg-black/80 z-40 md:hidden backdrop-blur-sm transition-opacity"
-          onClick={() => setIsSidebarOpen(false)}
-        />
-      )}
+    <ToastProvider>
+      <div className="flex h-screen bg-black text-white overflow-hidden font-sans selection:bg-emerald-500/30 relative">
+        {isSidebarOpen && (
+          <div 
+            className="fixed inset-0 bg-black/80 z-40 md:hidden backdrop-blur-sm transition-opacity"
+            onClick={() => setIsSidebarOpen(false)}
+          />
+        )}
 
-      {/* Sidebar Container - Mobile: Drawer, Desktop: Static */}
-      <div className={`
-        fixed inset-y-0 left-0 z-50 w-full sm:w-80 
-        transform transition-transform duration-300 ease-in-out 
-        md:relative md:translate-x-0 
-        ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}
-      `}>
-        <ResumeSection 
-          resumes={resumes} 
-          setResumes={setResumes} 
-          onClose={() => setIsSidebarOpen(false)}
-        />
-      </div>
+        <div className={`
+          fixed inset-y-0 left-0 z-50 w-full sm:w-80 
+          transform transition-transform duration-300 ease-in-out 
+          md:relative md:translate-x-0 
+          ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}
+        `}>
+          <ResumeSection 
+            resumes={resumes} 
+            setResumes={setResumes} 
+            onClose={() => setIsSidebarOpen(false)}
+          />
+        </div>
 
-      <div className="flex-1 w-full min-w-0">
-        <JobSearchSection 
-          resumes={resumes} 
-          trackedJobs={trackedJobs}
-          onTrackJob={handleTrackJob}
-          onMenuClick={() => setIsSidebarOpen(true)}
-        />
+        <div className="flex-1 w-full min-w-0">
+          <JobSearchSection 
+            resumes={resumes} 
+            trackedJobs={trackedJobs}
+            onTrackJob={handleTrackJob}
+            onMenuClick={() => setIsSidebarOpen(true)}
+          />
+        </div>
       </div>
-    </div>
+    </ToastProvider>
   );
 };
 
