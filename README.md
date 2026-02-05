@@ -17,10 +17,12 @@ JobHunter AI helps job seekers by:
 - Tailwind CSS + Lucide Icons
 - Vite (build tool)
 - Google GenAI SDK
-- OpenAI-compatible API support
+- Gemini & OpenAI-compatible API support
 - LocalStorage for persistence
 
 ## Supported AI Providers
+
+The following providers are supported. Provider configurations are hardcoded in `src/services/gemini.ts`. To add or modify providers, edit the `providers` array and `fetchProviderModels` function in that file.
 
 | Provider | Vision | Search | Notes |
 |----------|--------|--------|-------|
@@ -32,7 +34,13 @@ JobHunter AI helps job seekers by:
 | OpenRouter | ✅ | ❌ | Access 100+ models |
 | Ollama/Local | ✅ | ❌ | Self-hosted, free |
 
-Note: Job Search requires Google Gemini (uses Google Grounding feature).
+**Note:** Job Search requires Google Gemini (uses Google Grounding feature).
+
+**To modify providers:**
+- File: `src/services/gemini.ts`
+- Edit `fetchProviderModels()` for model lists
+- Edit `generateContent()` for API call logic
+- Edit provider defaults in `DEFAULT_SETTINGS`
 
 ## Installation
 
@@ -41,8 +49,10 @@ git clone https://github.com/yourusername/jobhunter-ai.git
 cd jobhunter-ai
 npm install
 npm run dev
-Open http://localhost:3000
 ```
+
+Open http://localhost:3000
+
 ## Configuration
 
 1. Click Settings (gear icon) in top-right
