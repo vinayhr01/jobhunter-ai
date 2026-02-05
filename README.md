@@ -11,6 +11,7 @@ An AI-powered job hunting platform that automates resume parsing, job searching,
 [![Forks](https://img.shields.io/github/forks/vinayhr01/jobhunter-ai?style=social)](https://github.com/vinayhr01/jobhunter-ai/fork)
 [![Issues](https://img.shields.io/github/issues/vinayhr01/jobhunter-ai)](https://github.com/vinayhr01/jobhunter-ai/issues)
 [![License](https://img.shields.io/github/license/vinayhr01/jobhunter-ai)](LICENSE)
+[![Live Demo](https://job-search-ai.netlify.app/)
 
 **⭐ Star this repo if it helped your job search!**
 
