@@ -14,8 +14,6 @@ An AI-powered job hunting platform that automates resume parsing, job searching,
 
 **⭐ Star this repo if it helped your job search!**
 
-[Live Demo](https://your-demo-url.com) • [Report Bug](https://github.com/yourusername/jobhunter-ai/issues) • [Request Feature](https://github.com/yourusername/jobhunter-ai/issues)
-
 </div>
 
 ## Overview
