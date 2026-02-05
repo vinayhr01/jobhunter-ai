@@ -2,6 +2,22 @@
 
 An AI-powered job hunting platform that automates resume parsing, job searching, matching, and resume tailoring.
 
+<!-- Top of README -->
+<div align="center">
+
+# 🎯 JobHunter AI
+
+[![Stars](https://img.shields.io/github/stars/yourusername/jobhunter-ai?style=social)](https://github.com/yourusername/jobhunter-ai)
+[![Forks](https://img.shields.io/github/forks/yourusername/jobhunter-ai?style=social)](https://github.com/yourusername/jobhunter-ai/fork)
+[![Issues](https://img.shields.io/github/issues/yourusername/jobhunter-ai)](https://github.com/yourusername/jobhunter-ai/issues)
+[![License](https://img.shields.io/github/license/yourusername/jobhunter-ai)](LICENSE)
+
+**⭐ Star this repo if it helped your job search!**
+
+[Live Demo](https://your-demo-url.com) • [Report Bug](https://github.com/yourusername/jobhunter-ai/issues) • [Request Feature](https://github.com/yourusername/jobhunter-ai/issues)
+
+</div>
+
 ## Overview
 
 JobHunter AI helps job seekers by:
