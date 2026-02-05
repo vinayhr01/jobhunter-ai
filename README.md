@@ -7,10 +7,10 @@ An AI-powered job hunting platform that automates resume parsing, job searching,
 
 # 🎯 JobHunter AI
 
-[![Stars](https://img.shields.io/github/stars/yourusername/jobhunter-ai?style=social)](https://github.com/yourusername/jobhunter-ai)
-[![Forks](https://img.shields.io/github/forks/yourusername/jobhunter-ai?style=social)](https://github.com/yourusername/jobhunter-ai/fork)
-[![Issues](https://img.shields.io/github/issues/yourusername/jobhunter-ai)](https://github.com/yourusername/jobhunter-ai/issues)
-[![License](https://img.shields.io/github/license/yourusername/jobhunter-ai)](LICENSE)
+[![Stars](https://img.shields.io/github/stars/vinayhr01/jobhunter-ai?style=social)](https://github.com/vinayhr01/jobhunter-ai)
+[![Forks](https://img.shields.io/github/forks/vinayhr01/jobhunter-ai?style=social)](https://github.com/vinayhr01/jobhunter-ai/fork)
+[![Issues](https://img.shields.io/github/issues/vinayhr01/jobhunter-ai)](https://github.com/vinayhr01/jobhunter-ai/issues)
+[![License](https://img.shields.io/github/license/vinayhr01/jobhunter-ai)](LICENSE)
 
 **⭐ Star this repo if it helped your job search!**
 
